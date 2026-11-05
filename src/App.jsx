@@ -59,6 +59,15 @@ export default function App() {
     return () => window.removeEventListener('keydown', f)
   }, [user])
 
+  // Título de la pestaña: módulo actual y, si hay, pendientes del rol entre paréntesis.
+  useEffect(() => {
+    if (!user) { document.title = 'Iniciar sesión · Nova Salud'; return }
+    const ok = PERMISOS[user.rol] || ['Dashboard']
+    const mod = ok.includes(page) ? page : 'Dashboard'
+    const n = (ok.includes('Pedidos web') ? resumen?.pedidosPendientes || 0 : 0) + (ok.includes('Alertas') ? resumen?.alertas || 0 : 0)
+    document.title = `${n > 0 ? `(${n}) ` : ''}${mod} · Nova Salud`
+  }, [user, page, resumen])
+
   if (!user) return <Login />
 
   const permitidas = PERMISOS[user.rol] || ['Dashboard']
