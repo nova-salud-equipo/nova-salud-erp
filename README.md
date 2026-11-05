@@ -40,7 +40,6 @@ Los pedidos hechos en la tienda aparecen solos en **Pedidos web** (actualizació
 | Variable | Para qué sirve |
 |---|---|
 | `VITE_API_URL` | URL de la API, sin `/api` al final |
-| `VITE_MOSTRAR_DEMO` | `false` para ocultar las cuentas de prueba en el login |
 
 ## Estructura
 ```

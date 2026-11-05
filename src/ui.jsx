@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { Icon } from './icons.jsx'
 
-export function Badge({ tone = 'neutral', children }) {
-  return <span className={'badge ' + tone}>{children}</span>
+export function Badge({ tone = 'neutral', dot, children }) {
+  return <span className={'badge ' + tone + (dot ? ' with-dot' : '')}>{dot && <i aria-hidden="true" />}{children}</span>
 }
 
 export function Btn({ kind = 'primary', small, className = '', ...p }) {
@@ -25,6 +26,26 @@ export function Card({ title, sub, action, children, className = '', style, onCl
   )
 }
 
+// Indicador numérico. Con onClick se vuelve un botón que lleva al módulo.
+export function Kpi({ label, value, icon, tone = 'teal', foot, onClick }) {
+  const Tag = onClick ? 'button' : 'div'
+  return (
+    <Tag className={'kpi' + (onClick ? ' clic' : '')} onClick={onClick} type={onClick ? 'button' : undefined}>
+      <div className="kpi-top">
+        <span className="kpi-l">{label}</span>
+        {icon && <span className={'kpi-ic ' + tone}><Icon name={icon} size={18} /></span>}
+      </div>
+      <b className="kpi-v">{value}</b>
+      {(foot || onClick) && (
+        <div className="kpi-f">
+          {foot}
+          {onClick && <Icon name="arrow" size={15} className="kpi-go" />}
+        </div>
+      )}
+    </Tag>
+  )
+}
+
 export function Chips({ options, value, onChange }) {
   return (
     <div className="chips">
@@ -37,6 +58,18 @@ export function Chips({ options, value, onChange }) {
       })}
     </div>
   )
+}
+
+// Cierra un menú desplegable al hacer clic fuera o al presionar Esc.
+export function useFueraYEsc(ref, activo, cerrar) {
+  useEffect(() => {
+    if (!activo) return
+    const fuera = (e) => { if (!ref.current?.contains(e.target)) cerrar() }
+    const esc = (e) => { if (e.key === 'Escape') cerrar() }
+    document.addEventListener('mousedown', fuera)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', fuera); document.removeEventListener('keydown', esc) }
+  }, [ref, activo, cerrar])
 }
 
 export function Modal({ title, onClose, children, width = 480 }) {
@@ -83,7 +116,7 @@ export function ToastProvider({ children }) {
   return (
     <ToastCtx.Provider value={show}>
       {children}
-      {t && <div className={'toast ' + t.tone} key={t.k} role="status">{t.msg}</div>}
+      {t && <div className={'toast ' + t.tone} key={t.k} role="status"><Icon name={t.tone === 'warn' ? 'alerta' : 'check'} size={17} /><span>{t.msg}</span></div>}
     </ToastCtx.Provider>
   )
 }

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { api } from '../api.js'
 import { useCarga } from '../hooks.js'
-import { Badge, Btn, Card, Chips, Estado, useToast } from '../ui.jsx'
+import { Badge, Btn, Card, Chips, Estado, Kpi, useToast } from '../ui.jsx'
+import { Icon } from '../icons.jsx'
 import { Boleta } from './Pos.jsx'
 import { descargar, fdate, fdia, fhora, hoyISO, money } from '../util.js'
 
@@ -43,13 +44,13 @@ export default function Reportes({ onCambio }) {
     <div className="stack">
       <div className="toolbar between">
         <Chips options={RANGOS} value={rango} onChange={setRango} />
-        <Btn kind="secondary" onClick={exportar} disabled={!ventas.data}>Exportar a Excel (CSV)</Btn>
+        <Btn kind="secondary" onClick={exportar} disabled={!ventas.data}><Icon name="descarga" size={16} />Exportar a Excel (CSV)</Btn>
       </div>
       <div className="kpis">
-        <Card className="kpi"><span className="muted s">Ventas del período</span><b>{money(kpi.total)}</b></Card>
-        <Card className="kpi"><span className="muted s">Boletas emitidas</span><b>{kpi.boletas}</b><Badge tone="neutral">{kpi.anuladas} anuladas</Badge></Card>
-        <Card className="kpi"><span className="muted s">Ticket promedio</span><b>{money(kpi.ticket)}</b></Card>
-        <Card className="kpi"><span className="muted s">Tiempo medio de atención</span><b>{mm} min {ss} s</b><Badge tone="teal">Meta: menos de 2 min</Badge></Card>
+        <Kpi label="Ventas del período" value={money(kpi.total)} icon="cash" tone="teal" foot={RANGOS.find((x) => x.value === rango)?.label} />
+        <Kpi label="Boletas emitidas" value={kpi.boletas} icon="boleta" tone="blue" foot={`${kpi.anuladas} ${kpi.anuladas === 1 ? 'anulada' : 'anuladas'}`} />
+        <Kpi label="Ticket promedio" value={money(kpi.ticket)} icon="ticket" tone="green" foot="Por boleta pagada" />
+        <Kpi label="Tiempo medio de atención" value={`${mm} min ${ss} s`} icon="reloj" tone={kpi.segundos <= 120 ? 'green' : 'amber'} foot="Meta: menos de 2 min" />
       </div>
       <div className="row3">
         <Card title="Productos más vendidos" sub="Unidades"><Lista datos={rep.data.top} fmt={(v) => v + ' u.'} /></Card>

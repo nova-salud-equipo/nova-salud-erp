@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-11-04T23:57:21.784Z",
+        "reason": "agent decision: Inter is the incumbent font loaded in index.html before this session; refinement of an Operate-mode internal panel preserves the existing typeface"
+      }
+    ]
+  }
+}

@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { api } from '../api.js'
 import { useCarga } from '../hooks.js'
 import { useAuth } from '../auth.jsx'
-import { Badge, Btn, Card, Chips, Estado, Field, Modal, useToast } from '../ui.jsx'
+import { Badge, Btn, Card, Chips, Estado, Field, Kpi, Modal, useToast } from '../ui.jsx'
+import { Icon } from '../icons.jsx'
 import { estadoProducto, fdate, fdia, fhora, money } from '../util.js'
 
 const ESTADOS = ['Todos', 'Normal', 'Stock bajo', 'Por vencer', 'Agotado']
@@ -33,20 +34,17 @@ export default function Inventario({ params, onCambio }) {
   const promo = async (p) => {
     try { await api(`/productos/${p.id}`, { method: 'PATCH', body: { enPromocion: !p.enPromocion } }); toast(p.enPromocion ? 'Promoción quitada' : 'Promoción -20% activada (también en la tienda web)'); recargar() } catch (e) { toast(e.message, 'warn') }
   }
-  const marcarAine = async (p) => {
-    try { await api(`/productos/${p.id}`, { method: 'PATCH', body: { contieneAine: !p.contieneAine } }); toast(p.contieneAine ? 'Se quitó la advertencia AINE' : 'Marcado como AINE: se mostrará la advertencia en caja y en la tienda web'); recargar() } catch (e) { toast(e.message, 'warn') }
-  }
 
   return (
     <div className="stack">
       <div className="kpis">
-        <Card className="kpi"><span className="muted s">Productos registrados</span><b>{productos.length}</b></Card>
-        <Card className="kpi"><span className="muted s">Unidades en almacén</span><b>{productos.reduce((s, p) => s + p.stockTotal, 0).toLocaleString('en-US')}</b></Card>
-        <Card className="kpi"><span className="muted s">Reservadas por pedidos web</span><b>{productos.reduce((s, p) => s + p.reservado, 0)}</b></Card>
-        <Card className="kpi"><span className="muted s">Valor a precio de venta</span><b>{money(productos.reduce((s, p) => s + p.vigente * p.precio, 0))}</b></Card>
+        <Kpi label="Productos registrados" value={productos.length} icon="inventario" tone="teal" foot={`${categorias.length - 1} categorías`} />
+        <Kpi label="Unidades en almacén" value={productos.reduce((s, p) => s + p.stockTotal, 0).toLocaleString('en-US')} icon="caja" tone="blue" foot="Suma de todos los lotes" />
+        <Kpi label="Reservadas por pedidos web" value={productos.reduce((s, p) => s + p.reservado, 0)} icon="pedidos" tone="amber" foot="Hasta entregar o cancelar" />
+        <Kpi label="Valor a precio de venta" value={money(productos.reduce((s, p) => s + p.vigente * p.precio, 0))} icon="cash" tone="green" foot="Solo lotes vigentes" />
       </div>
 
-      <Card title="Inventario de productos" action={puedeEditar && <Btn onClick={() => setNuevo(true)}>+ Nuevo producto</Btn>}>
+      <Card title="Inventario de productos" action={puedeEditar && <Btn onClick={() => setNuevo(true)}><Icon name="plus" size={16} />Nuevo producto</Btn>}>
         <div className="toolbar"><input className="search" placeholder="Buscar por nombre o código" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar en inventario" /></div>
         <Chips options={categorias} value={cat} onChange={setCat} />
         <div className="gap" />
@@ -61,15 +59,15 @@ export default function Inventario({ params, onCambio }) {
                 const pv = p.lotes.find((l) => l.stock > 0)
                 return [
                   <tr key={p.id} className="clic" onClick={() => setAbierto(abierto === p.id ? null : p.id)}>
-                    <td>{p.codigo}</td>
-                    <td><b>{p.nombre}</b> {p.contieneAine && <Badge tone="red">⚠ AINE</Badge>} {p.requiereReceta && <Badge tone="amber">Receta</Badge>} {p.enPromocion && <Badge tone="green">Promo</Badge>}<small className="muted block">{p.presentacion}</small></td>
+                    <td className="num muted">{p.codigo}</td>
+                    <td><b>{p.nombre}</b> {p.requiereReceta && <Badge tone="amber">Receta</Badge>} {p.enPromocion && <Badge tone="green">Promo</Badge>}<small className="muted block">{p.presentacion}</small></td>
                     <td>{p.categoria}</td>
                     <td className="r"><b>{p.disponible}</b></td>
                     <td className="r">{p.reservado || '—'}</td>
                     <td className="r">{p.stockMinimo}</td>
                     <td>{pv ? fdate(pv.vence) : '—'}{pv && pv.dias <= 30 && <small className="muted block">{pv.dias < 0 ? 'vencido' : `en ${pv.dias} días`}</small>}</td>
                     <td className="r">{money(p.precioFinal)}</td>
-                    <td><Badge tone={e.tone}>{e.texto}</Badge></td>
+                    <td><Badge tone={e.tone} dot>{e.texto}</Badge></td>
                     <td className="r"><span className="chev">{abierto === p.id ? '▲' : '▼'}</span></td>
                   </tr>,
                   abierto === p.id && (
@@ -90,13 +88,7 @@ export default function Inventario({ params, onCambio }) {
                             </tbody>
                           </table>
                         )}
-                        {p.contieneAine && <div className="alert-warn">⚠ Contiene un AINE (antiinflamatorio no esteroideo). Pregunta al cliente si es alérgico antes de venderlo.</div>}
-                        {user.rol === 'Administrador' && (
-                          <div className="acciones">
-                            <Btn kind="secondary" small onClick={() => promo(p)}>{p.enPromocion ? 'Quitar promoción' : 'Activar promoción -20%'}</Btn>
-                            <Btn kind="secondary" small onClick={() => marcarAine(p)}>{p.contieneAine ? 'Quitar marca AINE' : 'Marcar como AINE'}</Btn>
-                          </div>
-                        )}
+                        {user.rol === 'Administrador' && <Btn kind="secondary" small onClick={() => promo(p)}>{p.enPromocion ? 'Quitar promoción' : 'Activar promoción -20%'}</Btn>}
                       </div>
                     </td></tr>
                   ),
@@ -162,7 +154,7 @@ function NuevoProducto({ onClose, onListo }) {
   const toast = useToast()
   const cats = useCarga('/catalogo/categorias')
   const provs = useCarga('/compras/proveedores')
-  const [f, setF] = useState({ nombre: '', categoriaId: '', presentacion: '', precio: '', stockMinimo: '10', requiereReceta: false, contieneAine: false, proveedorId: '' })
+  const [f, setF] = useState({ nombre: '', categoriaId: '', presentacion: '', precio: '', stockMinimo: '10', requiereReceta: false, proveedorId: '' })
   const [t, setT] = useState({})
   const [enviando, setEnviando] = useState(false)
   const set = (k, v) => setF({ ...f, [k]: v })
@@ -194,7 +186,6 @@ function NuevoProducto({ onClose, onListo }) {
         <Field label="Stock mínimo" error={t.stockMinimo && err.stockMinimo}><input type="number" value={f.stockMinimo} onChange={(e) => set('stockMinimo', e.target.value)} onBlur={() => blur('stockMinimo')} /></Field>
       </div>
       <label className="check"><input type="checkbox" checked={f.requiereReceta} onChange={(e) => set('requiereReceta', e.target.checked)} /> Requiere receta médica</label>
-      <label className="check"><input type="checkbox" checked={f.contieneAine} onChange={(e) => set('contieneAine', e.target.checked)} /> Contiene AINE (ibuprofeno, naproxeno, aspirina, diclofenaco…): mostrar advertencia para alérgicos</label>
       <div className="modal-f"><Btn kind="secondary" onClick={onClose}>Cancelar</Btn><Btn disabled={!ok || enviando} onClick={guardar}>Crear producto</Btn></div>
     </Modal>
   )
