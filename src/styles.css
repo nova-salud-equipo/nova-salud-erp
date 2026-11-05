@@ -82,3 +82,7 @@ nav{display:flex;flex-direction:column;gap:2px}
 .nuevo{animation:flash 1.6s ease-out}@keyframes flash{from{background:var(--teal-l)}to{background:transparent}}
 .login-hint{font-size:12px;color:var(--mut)}
 .anular-flot{position:fixed;bottom:24px;right:24px;z-index:60}
+
+/* Advertencia de productos con AINE */
+.alert-warn{background:var(--red-l);color:#991B1B;border:1px solid #FCA5A5;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:500;line-height:1.4}
+.acciones{display:flex;gap:8px;flex-wrap:wrap}

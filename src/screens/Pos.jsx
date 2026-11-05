@@ -34,6 +34,7 @@ export default function Pos({ onCambio }) {
   const total = r2(lineas.reduce((t, l) => t + l.cant * l.p.precioFinal, 0))
   const subtotal = r2(total / 1.18)
   const pideReceta = lineas.some((l) => l.p.requiereReceta)
+  const conAine = lineas.filter((l) => l.p.contieneAine)
   const vuelto = metodo === 'Efectivo' && recibido !== '' ? r2(Number(recibido) - total) : null
   const falta = vuelto !== null && vuelto < 0
   const listo = lineas.length > 0 && (!pideReceta || receta) && !falta && !enviando
@@ -84,7 +85,7 @@ export default function Pos({ onCambio }) {
         <div className="prod-grid">
           {lista.map((p) => (
             <button key={p.id} className={'prod' + (p.disponible <= 0 ? ' off' : '')} onClick={() => agregar(p)} disabled={p.disponible <= 0}>
-              <div className="prod-top"><small className="muted">{p.codigo}</small>{p.requiereReceta && <Badge tone="amber">Receta</Badge>}{p.enPromocion && <Badge tone="green">-20%</Badge>}</div>
+              <div className="prod-top"><small className="muted">{p.codigo}</small>{p.contieneAine && <Badge tone="red">⚠ AINE</Badge>}{p.requiereReceta && <Badge tone="amber">Receta</Badge>}{p.enPromocion && <Badge tone="green">-20%</Badge>}</div>
               <b>{p.nombre}</b>
               <small className="muted">{p.presentacion}</small>
               <div className="prod-bot">
@@ -104,7 +105,7 @@ export default function Pos({ onCambio }) {
           <div className="lines">
             {lineas.map((l) => (
               <div key={l.id} className="line">
-                <div><b>{l.p.nombre}</b><small className="muted">{money(l.p.precioFinal)} c/u</small></div>
+                <div><b>{l.p.nombre}</b> {l.p.contieneAine && <Badge tone="red">AINE</Badge>}<small className="muted">{money(l.p.precioFinal)} c/u</small></div>
                 <div className="qty">
                   <button onClick={() => cambiar(l.id, -1)} aria-label={'Quitar uno de ' + l.p.nombre}>−</button>
                   <span>{l.cant}</span>
@@ -123,6 +124,7 @@ export default function Pos({ onCambio }) {
             {falta ? <em className="err">Falta {money(-vuelto)} para cubrir el total.</em> : vuelto !== null ? <em className="ok">Vuelto: {money(vuelto)}</em> : null}
           </label>
         )}
+        {conAine.length > 0 && <div className="alert-warn" role="alert">⚠ {conAine.map((l) => l.p.nombre).join(', ')} {conAine.length === 1 ? 'contiene' : 'contienen'} AINE. Pregunta al cliente si es alérgico a los antiinflamatorios antes de cobrar.</div>}
         {pideReceta && <label className="check"><input type="checkbox" checked={receta} onChange={(e) => setReceta(e.target.checked)} /> Verifiqué la receta médica del cliente</label>}
         <div className="totals">
           <div><span>Subtotal</span><span>{money(subtotal)}</span></div>

@@ -50,7 +50,7 @@ export default function Pedidos({ onCambio }) {
               <b>{p.codigo}</b> <Badge tone={TONO[p.estado]}>{p.estado}</Badge> {p.boleta && <Badge tone="neutral">Boleta {p.boleta}</Badge>}
               <small className="muted block">{fdate(fdia(p.creado_en))} {fhora(p.creado_en)} · {p.cliente} · {p.celular} · {p.entrega === 'recojo' ? 'Recojo en tienda' : 'Delivery: ' + p.direccion} · {p.metodo_pago}</small>
               <div className="ped-items">
-                {p.items.map((i) => <Badge key={i.productoId} tone={i.requiereReceta ? 'amber' : 'teal'}>{i.cantidad} × {i.nombre}{i.requiereReceta ? ' (receta)' : ''}</Badge>)}
+                {p.items.map((i) => <Badge key={i.productoId} tone={i.contieneAine ? 'red' : i.requiereReceta ? 'amber' : 'teal'}>{i.cantidad} × {i.nombre}{i.requiereReceta ? ' (receta)' : ''}{i.contieneAine ? ' ⚠ AINE' : ''}</Badge>)}
               </div>
             </div>
             <div className="ped-acc">

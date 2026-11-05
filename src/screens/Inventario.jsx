@@ -33,6 +33,9 @@ export default function Inventario({ params, onCambio }) {
   const promo = async (p) => {
     try { await api(`/productos/${p.id}`, { method: 'PATCH', body: { enPromocion: !p.enPromocion } }); toast(p.enPromocion ? 'Promoción quitada' : 'Promoción -20% activada (también en la tienda web)'); recargar() } catch (e) { toast(e.message, 'warn') }
   }
+  const marcarAine = async (p) => {
+    try { await api(`/productos/${p.id}`, { method: 'PATCH', body: { contieneAine: !p.contieneAine } }); toast(p.contieneAine ? 'Se quitó la advertencia AINE' : 'Marcado como AINE: se mostrará la advertencia en caja y en la tienda web'); recargar() } catch (e) { toast(e.message, 'warn') }
+  }
 
   return (
     <div className="stack">
@@ -59,7 +62,7 @@ export default function Inventario({ params, onCambio }) {
                 return [
                   <tr key={p.id} className="clic" onClick={() => setAbierto(abierto === p.id ? null : p.id)}>
                     <td>{p.codigo}</td>
-                    <td><b>{p.nombre}</b> {p.requiereReceta && <Badge tone="amber">Receta</Badge>} {p.enPromocion && <Badge tone="green">Promo</Badge>}<small className="muted block">{p.presentacion}</small></td>
+                    <td><b>{p.nombre}</b> {p.contieneAine && <Badge tone="red">⚠ AINE</Badge>} {p.requiereReceta && <Badge tone="amber">Receta</Badge>} {p.enPromocion && <Badge tone="green">Promo</Badge>}<small className="muted block">{p.presentacion}</small></td>
                     <td>{p.categoria}</td>
                     <td className="r"><b>{p.disponible}</b></td>
                     <td className="r">{p.reservado || '—'}</td>
@@ -87,7 +90,13 @@ export default function Inventario({ params, onCambio }) {
                             </tbody>
                           </table>
                         )}
-                        {user.rol === 'Administrador' && <Btn kind="secondary" small onClick={() => promo(p)}>{p.enPromocion ? 'Quitar promoción' : 'Activar promoción -20%'}</Btn>}
+                        {p.contieneAine && <div className="alert-warn">⚠ Contiene un AINE (antiinflamatorio no esteroideo). Pregunta al cliente si es alérgico antes de venderlo.</div>}
+                        {user.rol === 'Administrador' && (
+                          <div className="acciones">
+                            <Btn kind="secondary" small onClick={() => promo(p)}>{p.enPromocion ? 'Quitar promoción' : 'Activar promoción -20%'}</Btn>
+                            <Btn kind="secondary" small onClick={() => marcarAine(p)}>{p.contieneAine ? 'Quitar marca AINE' : 'Marcar como AINE'}</Btn>
+                          </div>
+                        )}
                       </div>
                     </td></tr>
                   ),
@@ -153,7 +162,7 @@ function NuevoProducto({ onClose, onListo }) {
   const toast = useToast()
   const cats = useCarga('/catalogo/categorias')
   const provs = useCarga('/compras/proveedores')
-  const [f, setF] = useState({ nombre: '', categoriaId: '', presentacion: '', precio: '', stockMinimo: '10', requiereReceta: false, proveedorId: '' })
+  const [f, setF] = useState({ nombre: '', categoriaId: '', presentacion: '', precio: '', stockMinimo: '10', requiereReceta: false, contieneAine: false, proveedorId: '' })
   const [t, setT] = useState({})
   const [enviando, setEnviando] = useState(false)
   const set = (k, v) => setF({ ...f, [k]: v })
@@ -185,6 +194,7 @@ function NuevoProducto({ onClose, onListo }) {
         <Field label="Stock mínimo" error={t.stockMinimo && err.stockMinimo}><input type="number" value={f.stockMinimo} onChange={(e) => set('stockMinimo', e.target.value)} onBlur={() => blur('stockMinimo')} /></Field>
       </div>
       <label className="check"><input type="checkbox" checked={f.requiereReceta} onChange={(e) => set('requiereReceta', e.target.checked)} /> Requiere receta médica</label>
+      <label className="check"><input type="checkbox" checked={f.contieneAine} onChange={(e) => set('contieneAine', e.target.checked)} /> Contiene AINE (ibuprofeno, naproxeno, aspirina, diclofenaco…): mostrar advertencia para alérgicos</label>
       <div className="modal-f"><Btn kind="secondary" onClick={onClose}>Cancelar</Btn><Btn disabled={!ok || enviando} onClick={guardar}>Crear producto</Btn></div>
     </Modal>
   )
