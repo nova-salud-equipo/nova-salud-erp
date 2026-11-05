@@ -3,9 +3,11 @@ import { api } from '../api.js'
 import { useCarga } from '../hooks.js'
 import { useNav } from '../nav.js'
 import { useAuth } from '../auth.jsx'
-import { Badge, Btn, Card, Chips, Estado, Modal, useToast } from '../ui.jsx'
+import { Badge, Btn, Card, Chips, Estado, Kpi, Modal, useToast } from '../ui.jsx'
+import { Icon } from '../icons.jsx'
 
 const TONO = { 'Stock bajo': 'red', 'Por vencer': 'amber', Vencido: 'red' }
+const ICONO = { 'Stock bajo': 'stockBajo', 'Por vencer': 'reloj', Vencido: 'alerta' }
 
 export default function Alertas({ onCambio }) {
   const go = useNav()
@@ -41,9 +43,9 @@ export default function Alertas({ onCambio }) {
   return (
     <div className="stack">
       <div className="kpis three">
-        <Card className="kpi"><span className="muted s">Stock bajo</span><b>{cuenta('Stock bajo')}</b></Card>
-        <Card className="kpi"><span className="muted s">Por vencer (30 días)</span><b>{cuenta('Por vencer')}</b></Card>
-        <Card className="kpi"><span className="muted s">Vencidos con stock</span><b>{cuenta('Vencido')}</b></Card>
+        <Kpi label="Stock bajo" value={cuenta('Stock bajo')} icon="stockBajo" tone="red" foot="Debajo del stock mínimo" />
+        <Kpi label="Por vencer (30 días)" value={cuenta('Por vencer')} icon="reloj" tone="amber" foot="Conviene rotar o promocionar" />
+        <Kpi label="Vencidos con stock" value={cuenta('Vencido')} icon="alerta" tone="red" foot="Dar de baja del inventario" />
       </div>
       <Card title="Alertas activas" sub="Se calculan solas con cada venta, pedido web, compra o ajuste">
         <Chips options={[{ value: 'Todas', label: `Todas (${todas.length})` }, { value: 'Stock bajo', label: 'Stock bajo' }, { value: 'Por vencer', label: 'Por vencer' }, { value: 'Vencido', label: 'Vencidos' }]} value={f} onChange={setF} />
@@ -53,7 +55,7 @@ export default function Alertas({ onCambio }) {
           <div className="alist">
             {lista.map((a) => (
               <div key={a.id} className="arow">
-                <i className={'dot ' + (TONO[a.tipo] === 'amber' ? 'amber' : 'red')} />
+                <span className={'al-ic ' + (TONO[a.tipo] === 'amber' ? 'amber' : 'red')}><Icon name={ICONO[a.tipo] || 'alerta'} size={16} /></span>
                 <div className="grow-1"><b>{a.producto}</b> <Badge tone={TONO[a.tipo]}>{a.tipo}</Badge><small className="muted block">{a.detalle}</small></div>
                 <Btn kind="ghost" small onClick={() => go('Inventario', { productoId: a.productoId, q: a.producto })}>Ver en inventario</Btn>
                 {accion(a)}

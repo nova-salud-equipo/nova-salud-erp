@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { api } from '../api.js'
 import { useCarga } from '../hooks.js'
 import { useAuth } from '../auth.jsx'
-import { Badge, Btn, Card, Chips, Estado, Modal, useToast } from '../ui.jsx'
+import { Badge, Btn, Card, Chips, Estado, Kpi, Modal, useToast } from '../ui.jsx'
 import { fdate, fdia, fhora, money } from '../util.js'
 
 const TONO = { Pendiente: 'amber', Preparado: 'blue', Entregado: 'green', Cancelado: 'red' }
@@ -35,10 +35,10 @@ export default function Pedidos({ onCambio }) {
   return (
     <div className="stack">
       <div className="kpis">
-        <Card className="kpi"><span className="muted s">Pendientes</span><b>{cuenta('Pendiente')}</b><Badge tone="amber">Por preparar</Badge></Card>
-        <Card className="kpi"><span className="muted s">Preparados</span><b>{cuenta('Preparado')}</b><Badge tone="blue">Listos para entregar</Badge></Card>
-        <Card className="kpi"><span className="muted s">Entregados</span><b>{cuenta('Entregado')}</b></Card>
-        <Card className="kpi"><span className="muted s">Monto por cobrar / entregar</span><b>{money(ped.data.filter((p) => ['Pendiente', 'Preparado'].includes(p.estado)).reduce((s, p) => s + p.total, 0))}</b></Card>
+        <Kpi label="Pendientes" value={cuenta('Pendiente')} icon="reloj" tone="amber" foot="Por preparar" />
+        <Kpi label="Preparados" value={cuenta('Preparado')} icon="pedidos" tone="blue" foot="Listos para entregar" />
+        <Kpi label="Entregados" value={cuenta('Entregado')} icon="check" tone="green" foot="Con boleta emitida" />
+        <Kpi label="Monto por cobrar / entregar" value={money(ped.data.filter((p) => ['Pendiente', 'Preparado'].includes(p.estado)).reduce((s, p) => s + p.total, 0))} icon="cash" tone="teal" foot="Pedidos pendientes y preparados" />
       </div>
       <Card title="Pedidos de la tienda en línea" sub="El stock queda reservado hasta que el pedido se entrega o se cancela · se actualiza solo">
         <Chips options={FILTROS} value={f} onChange={setF} />
@@ -47,14 +47,14 @@ export default function Pedidos({ onCambio }) {
         ) : lista.map((p) => (
           <div key={p.id} className={'ped' + (Date.now() - new Date(p.creado_en) < 15000 ? ' nuevo' : '')}>
             <div>
-              <b>{p.codigo}</b> <Badge tone={TONO[p.estado]}>{p.estado}</Badge> {p.boleta && <Badge tone="neutral">Boleta {p.boleta}</Badge>}
+              <b>{p.codigo}</b> <Badge tone={TONO[p.estado]} dot>{p.estado}</Badge> {p.boleta && <Badge tone="neutral">Boleta {p.boleta}</Badge>}
               <small className="muted block">{fdate(fdia(p.creado_en))} {fhora(p.creado_en)} · {p.cliente} · {p.celular} · {p.entrega === 'recojo' ? 'Recojo en tienda' : 'Delivery: ' + p.direccion} · {p.metodo_pago}</small>
               <div className="ped-items">
                 {p.items.map((i) => <Badge key={i.productoId} tone={i.requiereReceta ? 'amber' : 'teal'}>{i.cantidad} × {i.nombre}{i.requiereReceta ? ' (receta)' : ''}</Badge>)}
               </div>
             </div>
             <div className="ped-acc">
-              <b>{money(p.total)}</b>
+              <b className="ped-total">{money(p.total)}</b>
               {gestiona && p.estado === 'Pendiente' && <Btn small disabled={ocupado === p.id} onClick={() => mover(p, 'Preparado')}>Marcar preparado</Btn>}
               {gestiona && p.estado === 'Preparado' && <Btn small disabled={ocupado === p.id} onClick={() => mover(p, 'Entregado')}>Entregar y emitir boleta</Btn>}
               {gestiona && ['Pendiente', 'Preparado'].includes(p.estado) && <Btn small kind="secondary" onClick={() => setCancelar(p)}>Cancelar</Btn>}

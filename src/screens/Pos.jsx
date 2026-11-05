@@ -1,10 +1,27 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api.js'
 import { useCarga } from '../hooks.js'
-import { Badge, Btn, Chips, Estado, Modal, useToast } from '../ui.jsx'
+import { Badge, Btn, Estado, Modal, useToast } from '../ui.jsx'
+import { Icon } from '../icons.jsx'
 import { fdate, fdia, fhora, money, r2 } from '../util.js'
 
-const METODOS = ['Efectivo', 'Yape / Plin', 'Tarjeta']
+const METODOS = [
+  { v: 'Efectivo', icon: 'cash' },
+  { v: 'Yape / Plin', icon: 'movil' },
+  { v: 'Tarjeta', icon: 'tarjeta' },
+]
+
+// Billetes sugeridos para cobrar en efectivo, siempre mayores o iguales al total.
+function montosRapidos(total) {
+  if (total <= 0) return []
+  const out = [{ l: 'Exacto', v: total }]
+  for (const b of [10, 20, 50, 100, 200]) {
+    const v = Math.ceil(total / b) * b
+    if (v > total && !out.some((o) => o.v === v)) out.push({ l: 'S/ ' + v, v })
+    if (out.length === 4) break
+  }
+  return out
+}
 
 export default function Pos({ onCambio }) {
   const toast = useToast()
@@ -19,9 +36,17 @@ export default function Pos({ onCambio }) {
   const [boleta, setBoleta] = useState(null)
   const [enviando, setEnviando] = useState(false)
   const inicio = useRef(null)
+  const buscarRef = useRef(null)
+
+  // Solo en escritorio: en móvil abriría el teclado sin pedirlo.
+  useEffect(() => { if (window.matchMedia('(pointer: fine)').matches) buscarRef.current?.focus() }, [])
 
   const productos = prod.data || []
-  const categorias = useMemo(() => ['Todos', ...new Set(productos.map((p) => p.categoria))], [productos])
+  const categorias = useMemo(() => {
+    const m = new Map()
+    productos.forEach((p) => m.set(p.categoria, (m.get(p.categoria) || 0) + 1))
+    return [['Todos', productos.length], ...m.entries()]
+  }, [productos])
   const lista = useMemo(() => {
     const t = q.trim().toLowerCase()
     return productos.filter((p) => (cat === 'Todos' || p.categoria === cat) && (!t || p.nombre.toLowerCase().includes(t) || p.codigo.toLowerCase().includes(t)))
@@ -30,7 +55,9 @@ export default function Pos({ onCambio }) {
   if (!prod.data) return <Estado {...prod} onReintentar={prod.recargar} />
 
   const buscar = (id) => productos.find((p) => p.id === id)
+  const enCarro = (id) => carro.find((c) => c.id === id)?.cant || 0
   const lineas = carro.map((c) => ({ ...c, p: buscar(c.id) })).filter((l) => l.p)
+  const unidades = lineas.reduce((s, l) => s + l.cant, 0)
   const total = r2(lineas.reduce((t, l) => t + l.cant * l.p.precioFinal, 0))
   const subtotal = r2(total / 1.18)
   const pideReceta = lineas.some((l) => l.p.requiereReceta)
@@ -38,24 +65,29 @@ export default function Pos({ onCambio }) {
   const falta = vuelto !== null && vuelto < 0
   const listo = lineas.length > 0 && (!pideReceta || receta) && !falta && !enviando
 
+  // Actualización funcional: varios clics seguidos no se pierden.
   const agregar = (p) => {
-    const ya = carro.find((c) => c.id === p.id)?.cant || 0
     if (p.disponible <= 0) return toast(p.nombre + ' está agotado', 'warn')
-    if (ya >= p.disponible) return toast(`Solo hay ${p.disponible} unidades disponibles de ${p.nombre}`, 'warn')
+    if (enCarro(p.id) >= p.disponible) return toast(`Solo hay ${p.disponible} unidades disponibles de ${p.nombre}`, 'warn')
     if (!inicio.current) inicio.current = Date.now()
-    setCarro(ya ? carro.map((c) => (c.id === p.id ? { ...c, cant: c.cant + 1 } : c)) : [...carro, { id: p.id, cant: 1 }])
+    setCarro((cs) => {
+      const ya = cs.find((c) => c.id === p.id)
+      if (ya && ya.cant >= p.disponible) return cs
+      return ya ? cs.map((c) => (c.id === p.id ? { ...c, cant: c.cant + 1 } : c)) : [...cs, { id: p.id, cant: 1 }]
+    })
   }
   const cambiar = (id, d) => {
     const p = buscar(id)
-    setCarro(carro.flatMap((c) => {
-      if (c.id !== id) return [c]
-      const n = c.cant + d
-      if (n <= 0) return []
-      if (n > p.disponible) { toast(`Solo hay ${p.disponible} unidades disponibles`, 'warn'); return [c] }
-      return [{ ...c, cant: n }]
-    }))
+    if (d > 0 && enCarro(id) >= p.disponible) return toast(`Solo hay ${p.disponible} unidades disponibles`, 'warn')
+    setCarro((cs) => cs.flatMap((c) => (c.id !== id ? [c] : c.cant + d <= 0 ? [] : [{ ...c, cant: c.cant + d }])))
   }
+  const quitar = (id) => setCarro((cs) => cs.filter((c) => c.id !== id))
   const limpiar = () => { setCarro([]); setCliente(''); setRecibido(''); setReceta(false); setMetodo('Efectivo'); inicio.current = null }
+
+  const alBuscar = (e) => {
+    if (e.key === 'Enter' && lista.length === 1) { agregar(lista[0]); setQ('') }
+    if (e.key === 'Escape') setQ('')
+  }
 
   const cobrar = async () => {
     setEnviando(true)
@@ -73,63 +105,147 @@ export default function Pos({ onCambio }) {
     } finally { setEnviando(false) }
   }
 
+  const motivo = pideReceta && !receta ? 'Confirma la receta médica para cobrar.' : falta ? 'El monto recibido no cubre el total.' : ''
+
   return (
     <div className="pos">
-      <div className="pos-l">
-        <div className="toolbar">
-          <input className="search" placeholder="Buscar por nombre o código (ej. paracetamol)" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar producto" />
+      <section className="pos-l" aria-label="Catálogo">
+        <div className="pos-search">
+          <Icon name="buscar" size={19} />
+          <input ref={buscarRef} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={alBuscar}
+            placeholder="Buscar por nombre o código…" aria-label="Buscar producto" autoComplete="off" spellCheck={false} />
+          {q && <button className="pos-search-x" onClick={() => { setQ(''); buscarRef.current?.focus() }} aria-label="Limpiar búsqueda"><Icon name="x" size={16} /></button>}
+          <span className="pos-search-n">{lista.length === 1 && q ? 'Enter para agregar' : `${lista.length} ${lista.length === 1 ? 'producto' : 'productos'}`}</span>
         </div>
-        <Chips options={categorias} value={cat} onChange={setCat} />
-        {lista.length === 0 && <div className="empty"><b>No encontramos productos</b><p className="muted">Prueba con otro nombre o quita el filtro de categoría.</p><Btn kind="secondary" small onClick={() => { setQ(''); setCat('Todos') }}>Limpiar búsqueda</Btn></div>}
-        <div className="prod-grid">
-          {lista.map((p) => (
-            <button key={p.id} className={'prod' + (p.disponible <= 0 ? ' off' : '')} onClick={() => agregar(p)} disabled={p.disponible <= 0}>
-              <div className="prod-top"><small className="muted">{p.codigo}</small>{p.requiereReceta && <Badge tone="amber">Receta</Badge>}{p.enPromocion && <Badge tone="green">-20%</Badge>}</div>
-              <b>{p.nombre}</b>
-              <small className="muted">{p.presentacion}</small>
-              <div className="prod-bot">
-                <span className="price">{p.enPromocion && <s>{money(p.precio)}</s>} {money(p.precioFinal)}</span>
-                <Badge tone={p.disponible <= 0 ? 'red' : p.disponible < p.stockMinimo ? 'amber' : 'neutral'}>{p.disponible <= 0 ? 'Agotado' : p.disponible + ' disp.'}</Badge>
-              </div>
+
+        <div className="cats" role="tablist" aria-label="Categorías">
+          {categorias.map(([c, n]) => (
+            <button key={c} role="tab" aria-selected={cat === c} className={'cat' + (cat === c ? ' on' : '')} onClick={() => setCat(c)}>
+              {c}<span>{n}</span>
             </button>
           ))}
         </div>
-      </div>
 
-      <aside className="cart">
-        <div className="cart-h"><h3>Venta actual</h3>{carro.length > 0 && <button className="link" onClick={limpiar}>Vaciar</button>}</div>
-        {lineas.length === 0 ? (
-          <div className="empty small"><b>Aún no agregas productos</b><p className="muted">Toca un producto de la lista para añadirlo a la venta.</p></div>
+        {lista.length === 0 ? (
+          <div className="empty"><b>No encontramos productos</b><p className="muted">Prueba con otro nombre o quita el filtro de categoría.</p><Btn kind="secondary" small onClick={() => { setQ(''); setCat('Todos') }}>Limpiar búsqueda</Btn></div>
         ) : (
-          <div className="lines">
-            {lineas.map((l) => (
-              <div key={l.id} className="line">
-                <div><b>{l.p.nombre}</b><small className="muted">{money(l.p.precioFinal)} c/u</small></div>
-                <div className="qty">
-                  <button onClick={() => cambiar(l.id, -1)} aria-label={'Quitar uno de ' + l.p.nombre}>−</button>
-                  <span>{l.cant}</span>
-                  <button onClick={() => cambiar(l.id, 1)} aria-label={'Agregar uno de ' + l.p.nombre}>+</button>
-                </div>
-                <b className="r">{money(l.cant * l.p.precioFinal)}</b>
-              </div>
-            ))}
+          <div className="prod-grid">
+            {lista.map((p) => {
+              const n = enCarro(p.id)
+              const agotado = p.disponible <= 0
+              const bajo = !agotado && p.disponible < p.stockMinimo
+              return (
+                <button key={p.id} className={'prod' + (agotado ? ' off' : '') + (n ? ' in' : '')} onClick={() => agregar(p)} disabled={agotado}
+                  aria-label={`${p.nombre}, ${money(p.precioFinal)}${n ? `, ${n} en la venta` : ''}`}>
+                  {n > 0 && <span className="prod-n" aria-hidden="true">{n}</span>}
+                  <div className="prod-top">
+                    <small className="prod-code">{p.codigo}</small>
+                    {p.requiereReceta && <Badge tone="amber">Receta</Badge>}
+                    {p.enPromocion && <Badge tone="green">-20%</Badge>}
+                  </div>
+                  <b className="prod-name">{p.nombre}</b>
+                  <small className="prod-pres">{p.presentacion}</small>
+                  <div className="prod-bot">
+                    <span className="price">{p.enPromocion && <s>{money(p.precio)}</s>}{money(p.precioFinal)}</span>
+                    <span className={'stock' + (agotado ? ' red' : bajo ? ' amber' : '')}>
+                      <i aria-hidden="true" />{agotado ? 'Agotado' : bajo ? `Quedan ${p.disponible}` : `${p.disponible} disp.`}
+                    </span>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         )}
-        <label className="field"><span>Cliente (opcional)</span><input value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Público general" /></label>
-        <div className="field"><span>Método de pago</span><Chips options={METODOS} value={metodo} onChange={setMetodo} /></div>
-        {metodo === 'Efectivo' && lineas.length > 0 && (
-          <label className="field"><span>Monto recibido</span>
-            <input type="number" min="0" step="0.1" value={recibido} onChange={(e) => setRecibido(e.target.value)} placeholder={money(total)} />
-            {falta ? <em className="err">Falta {money(-vuelto)} para cubrir el total.</em> : vuelto !== null ? <em className="ok">Vuelto: {money(vuelto)}</em> : null}
-          </label>
-        )}
-        {pideReceta && <label className="check"><input type="checkbox" checked={receta} onChange={(e) => setReceta(e.target.checked)} /> Verifiqué la receta médica del cliente</label>}
-        <div className="totals">
-          <div><span>Subtotal</span><span>{money(subtotal)}</span></div>
-          <div><span>IGV (18%)</span><span>{money(total - subtotal)}</span></div>
-          <div className="grand"><span>Total</span><span>{money(total)}</span></div>
+      </section>
+
+      <aside className="cart" aria-label="Venta actual">
+        <header className="cart-h">
+          <div>
+            <h3>Venta actual</h3>
+            <small className="muted">{unidades ? `${unidades} ${unidades === 1 ? 'unidad' : 'unidades'} · ${lineas.length} ${lineas.length === 1 ? 'producto' : 'productos'}` : 'Sin productos'}</small>
+          </div>
+          {carro.length > 0 && <button className="cart-clear" onClick={limpiar}><Icon name="basura" size={15} />Vaciar</button>}
+        </header>
+
+        <div className="cart-body">
+          {lineas.length === 0 ? (
+            <div className="cart-empty">
+              <span className="cart-empty-ic"><Icon name="pos" size={24} /></span>
+              <b>Agrega productos a la venta</b>
+              <p className="muted">Toca un producto del catálogo o búscalo por nombre o código.</p>
+            </div>
+          ) : (
+            <ul className="lines">
+              {lineas.map((l) => (
+                <li key={l.id} className="line">
+                  <div className="line-tx">
+                    <b>{l.p.nombre}</b>
+                    <small className="muted">{money(l.p.precioFinal)} c/u{l.p.requiereReceta ? ' · Receta' : ''}</small>
+                  </div>
+                  <div className="qty">
+                    <button onClick={() => cambiar(l.id, -1)} aria-label={'Quitar uno de ' + l.p.nombre}>−</button>
+                    <span aria-live="polite">{l.cant}</span>
+                    <button onClick={() => cambiar(l.id, 1)} aria-label={'Agregar uno de ' + l.p.nombre} disabled={l.cant >= l.p.disponible}>+</button>
+                  </div>
+                  <b className="line-t">{money(l.cant * l.p.precioFinal)}</b>
+                  <button className="line-x" onClick={() => quitar(l.id)} aria-label={'Quitar ' + l.p.nombre + ' de la venta'}><Icon name="x" size={14} /></button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-        <Btn className="full big" disabled={!listo} onClick={cobrar}>{enviando ? 'Registrando…' : `Cobrar ${total > 0 ? money(total) : ''}`}</Btn>
+
+        <div className="cart-foot">
+          <label className="cart-client">
+            <Icon name="usuario" size={16} />
+            <input value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Cliente: Público general" aria-label="Cliente (opcional)" />
+          </label>
+
+          <div className="pay" role="radiogroup" aria-label="Método de pago">
+            {METODOS.map((m) => (
+              <button key={m.v} role="radio" aria-checked={metodo === m.v} className={'pay-b' + (metodo === m.v ? ' on' : '')} onClick={() => setMetodo(m.v)}>
+                <Icon name={m.icon} size={18} />{m.v}
+              </button>
+            ))}
+          </div>
+
+          {metodo === 'Efectivo' && lineas.length > 0 && (
+            <div className="cash">
+              <div className="cash-row">
+                <label className="cash-in">
+                  <span>Recibido</span>
+                  <input type="number" inputMode="decimal" min="0" step="0.1" value={recibido} onChange={(e) => setRecibido(e.target.value)} placeholder="0.00" aria-label="Monto recibido" />
+                </label>
+                <div className={'cash-out' + (falta ? ' bad' : vuelto !== null ? ' ok' : '')} aria-live="polite">
+                  <span>{falta ? 'Falta' : 'Vuelto'}</span>
+                  <b>{vuelto === null ? '—' : money(Math.abs(vuelto))}</b>
+                </div>
+              </div>
+              <div className="cash-q">
+                {montosRapidos(total).map((m) => (
+                  <button key={m.l} className={'cash-q-b' + (Number(recibido) === m.v ? ' on' : '')} onClick={() => setRecibido(String(m.v))}>{m.l}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {pideReceta && (
+            <label className={'rx' + (receta ? ' ok' : '')}>
+              <input type="checkbox" checked={receta} onChange={(e) => setReceta(e.target.checked)} />
+              <Icon name="receta" size={17} />
+              <span>Verifiqué la receta médica del cliente</span>
+            </label>
+          )}
+
+          <div className="totals">
+            <span>Subtotal <b>{money(subtotal)}</b></span>
+            <span>IGV 18% <b>{money(total - subtotal)}</b></span>
+          </div>
+          <button className="charge" disabled={!listo} onClick={cobrar} aria-busy={enviando}>
+            {enviando ? <><span className="spin" aria-hidden="true" />Registrando…</> : <><span className="charge-l">Cobrar<small>Total a pagar</small></span><b>{money(total)}</b></>}
+          </button>
+          {lineas.length > 0 && motivo && !enviando && <p className="charge-hint">{motivo}</p>}
+        </div>
       </aside>
 
       {boleta && <Boleta v={boleta} onClose={() => setBoleta(null)} />}
