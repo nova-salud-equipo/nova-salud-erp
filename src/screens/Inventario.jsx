@@ -5,7 +5,7 @@ import { useAuth } from '../auth.jsx'
 import { Badge, Btn, Card, Chips, Estado, Field, Kpi, Modal, useToast } from '../ui.jsx'
 import { Icon } from '../icons.jsx'
 import { useNav } from '../nav.js'
-import { estadoProducto, fdate, fdia, fhora, money } from '../util.js'
+import { estadoProducto, fdate, fdia, fhora, hoyISO, money } from '../util.js'
 
 const ESTADOS = ['Todos', 'Normal', 'Stock bajo', 'Por vencer', 'Agotado']
 
@@ -177,23 +177,32 @@ function NuevoProducto({ onClose, onListo }) {
   const toast = useToast()
   const cats = useCarga('/catalogo/categorias')
   const provs = useCarga('/compras/proveedores')
-  const [f, setF] = useState({ nombre: '', categoriaId: '', presentacion: '', precio: '', stockMinimo: '10', requiereReceta: false, proveedorId: '' })
+  const [f, setF] = useState({ nombre: '', categoriaId: '', presentacion: '', precio: '', stockMinimo: '10', requiereReceta: false, proveedorId: '', cantidad: '', lote: '', vence: '' })
   const [t, setT] = useState({})
   const [enviando, setEnviando] = useState(false)
   const set = (k, v) => setF({ ...f, [k]: v })
+  const hoy = hoyISO()
+  const conStock = f.cantidad !== ''
   const err = {
     nombre: f.nombre.trim().length < 3 ? 'Escribe el nombre del producto (mínimo 3 letras).' : '',
     categoriaId: !f.categoriaId ? 'Elige una categoría.' : '',
     precio: !(Number(f.precio) > 0) ? 'Ingresa un precio mayor a 0.' : '',
     stockMinimo: f.stockMinimo === '' || !(Number(f.stockMinimo) >= 0) ? 'Ingresa el stock mínimo.' : '',
+    cantidad: conStock && !(Number.isInteger(Number(f.cantidad)) && Number(f.cantidad) >= 1) ? 'Ingresa una cantidad entera mayor a 0.' : '',
+    lote: conStock && f.lote.trim().length < 2 ? 'Ingresa el N° de lote.' : '',
+    vence: conStock && (!f.vence ? 'Ingresa la fecha.' : f.vence <= hoy ? 'Debe vencer después de hoy.' : ''),
   }
   const ok = Object.values(err).every((e) => !e)
   const blur = (k) => setT({ ...t, [k]: true })
   const guardar = async () => {
     setEnviando(true)
     try {
-      await api('/productos', { method: 'POST', body: { ...f, categoriaId: Number(f.categoriaId), proveedorId: f.proveedorId ? Number(f.proveedorId) : null, precio: Number(f.precio), stockMinimo: Number(f.stockMinimo) } })
-      toast('Producto creado. Registra su primera compra para cargar stock.'); onListo()
+      const { cantidad, lote, vence, ...datos } = f
+      await api('/productos', { method: 'POST', body: {
+        ...datos, categoriaId: Number(f.categoriaId), proveedorId: f.proveedorId ? Number(f.proveedorId) : null, precio: Number(f.precio), stockMinimo: Number(f.stockMinimo),
+        stockInicial: conStock ? { cantidad: Number(cantidad), lote: lote.trim(), vence } : undefined,
+      } })
+      toast(conStock ? `Producto creado con ${cantidad} unidades en el lote ${lote.trim()}.` : 'Producto creado. Registra su primera compra para cargar stock.'); onListo()
     } catch (e) { toast(e.message, 'warn') } finally { setEnviando(false) }
   }
   return (
@@ -206,8 +215,15 @@ function NuevoProducto({ onClose, onListo }) {
       <Field label="Presentación" hint="Ej. Caja x 20 tabletas"><input value={f.presentacion} onChange={(e) => set('presentacion', e.target.value)} /></Field>
       <div className="two">
         <Field label="Precio de venta (S/)" error={t.precio && err.precio}><input type="number" step="0.1" value={f.precio} onChange={(e) => set('precio', e.target.value)} onBlur={() => blur('precio')} /></Field>
-        <Field label="Stock mínimo" error={t.stockMinimo && err.stockMinimo}><input type="number" value={f.stockMinimo} onChange={(e) => set('stockMinimo', e.target.value)} onBlur={() => blur('stockMinimo')} /></Field>
+        <Field label="Stock mínimo" hint="Para la alerta de stock bajo" error={t.stockMinimo && err.stockMinimo}><input type="number" value={f.stockMinimo} onChange={(e) => set('stockMinimo', e.target.value)} onBlur={() => blur('stockMinimo')} /></Field>
       </div>
+      <Field label="Stock inicial (opcional)" hint="Déjalo vacío si cargarás el stock con una compra" error={t.cantidad && err.cantidad}><input type="number" min="1" step="1" placeholder="Ej. 10" value={f.cantidad} onChange={(e) => set('cantidad', e.target.value)} onBlur={() => blur('cantidad')} /></Field>
+      {conStock && (
+        <div className="two">
+          <Field label="N° de lote" error={t.lote && err.lote}><input value={f.lote} maxLength={30} onChange={(e) => set('lote', e.target.value)} onBlur={() => blur('lote')} /></Field>
+          <Field label="Vence" error={t.vence && err.vence}><input type="date" min={hoy} value={f.vence} onChange={(e) => set('vence', e.target.value)} onBlur={() => blur('vence')} /></Field>
+        </div>
+      )}
       <label className="check"><input type="checkbox" checked={f.requiereReceta} onChange={(e) => set('requiereReceta', e.target.checked)} /> Requiere receta médica</label>
       <div className="modal-f"><Btn kind="secondary" onClick={onClose}>Cancelar</Btn><Btn disabled={!ok || enviando} onClick={guardar}>Crear producto</Btn></div>
     </Modal>
