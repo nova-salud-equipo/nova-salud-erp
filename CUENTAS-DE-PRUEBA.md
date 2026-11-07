@@ -4,7 +4,7 @@ Usuarios de demostración para entrar al panel de Nova Salud. Cada rol ve módul
 
 | Rol | Correo | Contraseña | Qué puede ver |
 |---|---|---|---|
-| Administrador | admin@novasalud.pe |   | Todos los módulos |
+| Administrador | admin@novasalud.pe | admin123 | Todos los módulos |
 | Cajero | cajero@novasalud.pe | cajero123 | Dashboard, punto de venta, pedidos web e inventario |
 | Almacén | almacen@novasalud.pe | almacen123 | Dashboard, inventario, alertas y compras |
 

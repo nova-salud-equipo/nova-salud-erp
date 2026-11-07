@@ -448,3 +448,4 @@ kbd{font:600 11px/1 Inter,system-ui,sans-serif;color:var(--mut);background:#fff;
   .login-form{animation:none}
   .spin{animation-duration:1.4s}
 }
+.nowrap{white-space:nowrap}
