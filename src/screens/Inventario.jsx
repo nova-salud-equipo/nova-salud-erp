@@ -4,6 +4,7 @@ import { useCarga } from '../hooks.js'
 import { useAuth } from '../auth.jsx'
 import { Badge, Btn, Card, Chips, Estado, Field, Kpi, Modal, useToast } from '../ui.jsx'
 import { Icon } from '../icons.jsx'
+import { useNav } from '../nav.js'
 import { estadoProducto, fdate, fdia, fhora, money } from '../util.js'
 
 const ESTADOS = ['Todos', 'Normal', 'Stock bajo', 'Por vencer', 'Agotado']
@@ -68,7 +69,10 @@ export default function Inventario({ params, onCambio }) {
                     <td>{pv ? fdate(pv.vence) : '—'}{pv && pv.dias <= 30 && <small className="muted block">{pv.dias < 0 ? 'vencido' : `en ${pv.dias} días`}</small>}</td>
                     <td className="r">{money(p.precioFinal)}</td>
                     <td><Badge tone={e.tone} dot>{e.texto}</Badge></td>
-                    <td className="r"><span className="chev">{abierto === p.id ? '▲' : '▼'}</span></td>
+                    <td className="r nowrap">
+                      {puedeEditar && <Btn kind="secondary" small onClick={(ev) => { ev.stopPropagation(); setAjuste({ p }) }}>Ajustar stock</Btn>}{' '}
+                      <span className="chev">{abierto === p.id ? '▲' : '▼'}</span>
+                    </td>
                   </tr>,
                   abierto === p.id && (
                     <tr key={p.id + 'd'} className="detalle"><td colSpan="10">
@@ -122,21 +126,40 @@ export default function Inventario({ params, onCambio }) {
   )
 }
 
-function Ajuste({ p, l, onClose, onListo }) {
+// Ajuste de stock. Si no se indica lote (botón de la fila), se elige uno de la lista.
+function Ajuste({ p, l: loteInicial, onClose, onListo }) {
   const toast = useToast()
-  const [valor, setValor] = useState(String(l.stock))
+  const go = useNav()
+  const [loteId, setLoteId] = useState(loteInicial?.id ?? p.lotes[0]?.id ?? null)
+  const l = p.lotes.find((x) => x.id === loteId)
+  const [valor, setValor] = useState(String(l?.stock ?? ''))
   const [motivo, setMotivo] = useState('Conteo físico')
   const [tocado, setTocado] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const n = Number(valor)
   const error = valor === '' || !Number.isInteger(n) || n < 0 ? 'Ingresa un número entero de 0 o más.' : ''
+  const elegirLote = (id) => { const x = p.lotes.find((y) => y.id === id); setLoteId(id); setValor(String(x.stock)); setTocado(false) }
   const guardar = async () => {
     setEnviando(true)
     try { await api(`/productos/lotes/${l.id}/ajuste`, { method: 'POST', body: { nuevoStock: n, motivo } }); toast('Stock del lote ' + l.numero + ' actualizado'); onListo() } catch (e) { toast(e.message, 'warn') } finally { setEnviando(false) }
   }
+  if (!l) return (
+    <Modal title="Ajustar stock" onClose={onClose}>
+      <p className="muted">{p.nombre}</p>
+      <p>Este producto todavía no tiene lotes. Para cargar stock, registra una compra con su número de lote y fecha de vencimiento.</p>
+      <div className="modal-f"><Btn kind="secondary" onClick={onClose}>Cancelar</Btn><Btn onClick={() => go('Compras', { productoId: p.id })}>Registrar compra</Btn></div>
+    </Modal>
+  )
   return (
-    <Modal title="Ajustar stock del lote" onClose={onClose}>
-      <p className="muted">{p.nombre} · Lote {l.numero}</p>
+    <Modal title="Ajustar stock" onClose={onClose}>
+      <p className="muted">{p.nombre}{p.lotes.length === 1 && ` · Lote ${l.numero}`}</p>
+      {p.lotes.length > 1 && (
+        <Field label="Lote">
+          <select value={loteId} onChange={(e) => elegirLote(Number(e.target.value))}>
+            {p.lotes.map((x) => <option key={x.id} value={x.id}>{x.numero} · vence {fdate(x.vence)} · stock {x.stock}</option>)}
+          </select>
+        </Field>
+      )}
       <Field label="Nuevo stock del lote" error={tocado && error} hint={`Stock actual: ${l.stock}`}>
         <input type="number" value={valor} onChange={(e) => setValor(e.target.value)} onBlur={() => setTocado(true)} autoFocus />
       </Field>
